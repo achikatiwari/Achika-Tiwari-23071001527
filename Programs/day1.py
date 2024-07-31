@@ -40,6 +40,10 @@
 
 # 8. saperator
 
-print("Hello","How","are","you", sep="^")
+print("Hello","How","are","you", end="^")
+
+# note:- using sep() fuction we can easly saperate any word in any type on sep which we want we only need to give sep in "" double codes
+
+
 
 
