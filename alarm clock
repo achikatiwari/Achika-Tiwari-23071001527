@@ -1,0 +1,172 @@
+import tkinter as tk
+from tkinter import messagebox, filedialog
+from tkinter import ttk
+import time
+import threading
+import math
+import pygame  # For playing both WAV and MP3 files
+
+# Initialize pygame mixer
+pygame.mixer.init()
+
+alarms = []  # List to store multiple alarms
+default_sound = "alarm.wav"  # Ensure this file exists
+selected_sound = default_sound  # Store selected sound file
+snooze_time = 5  # Snooze duration in minutes
+
+# Function to select an alarm sound
+def select_sound():
+    global selected_sound
+    file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.wav;*.mp3")])  # Ensure filetypes filter is correct
+    if file_path:
+        selected_sound = file_path
+        sound_label.config(text=f"Selected: {selected_sound.split('/')[-1]}", fg="white")
+
+# Function to play the alarm sound
+def play_sound(file_path):
+    try:
+        if file_path.endswith(".wav") or file_path.endswith(".mp3"):
+            pygame.mixer.music.load(file_path)
+            pygame.mixer.music.play(-1)  # Play in a loop until dismissed
+        else:
+            raise ValueError("Invalid file type! Only WAV or MP3 are supported.")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to play sound: {e}")
+
+# Function to stop alarm sound
+def stop_sound():
+    pygame.mixer.music.stop()
+
+# Function to snooze the alarm
+def snooze_alarm(alarm):
+    stop_sound()  # Stop current alarm sound
+    snooze_time_str = time.strftime("%H:%M:%S", time.localtime(time.time() + snooze_time * 60))
+    alarms.append({"time": snooze_time_str, "sound": alarm["sound"], "repeat": False})
+    alarm_list.insert(tk.END, f"Snoozed: {snooze_time_str} ({alarm['sound'].split('/')[-1]})")
+    messagebox.showinfo("Snooze", f"Alarm snoozed for {snooze_time} minutes!")
+
+# Function to check alarms in a separate thread
+def check_alarm():
+    while True:
+        current_time = time.strftime("%H:%M:%S")
+        for alarm in alarms:
+            if current_time == alarm["time"]:
+                play_sound(alarm["sound"])
+                response = messagebox.askquestion("Alarm!", f"Alarm for {alarm['time']}!\nDo you want to snooze?")
+                if response == "yes":
+                    snooze_alarm(alarm)
+                else:
+                    stop_sound()
+                if not alarm["repeat"]:
+                    alarms.remove(alarm)
+        time.sleep(1)
+
+# Function to set an alarm
+def set_alarm():
+    alarm_time = f"{hour_var.get()}:{minute_var.get()}:{second_var.get()}"
+    repeat = repeat_var.get()
+    
+    if hour_var.get() and minute_var.get() and second_var.get():
+        alarms.append({"time": alarm_time, "sound": selected_sound, "repeat": repeat})
+        alarm_list.insert(tk.END, f"{alarm_time} ({'Repeating' if repeat else 'One-time'}) - {selected_sound.split('/')[-1]}")
+        alarm_label.config(text=f"Alarm set for {alarm_time}", fg="#a67c52")
+    else:
+        messagebox.showwarning("Warning", "Please enter a valid time!")
+
+# Function to cancel a selected alarm
+def cancel_selected_alarm():
+    selected_index = alarm_list.curselection()
+    if selected_index:
+        alarms.pop(selected_index[0])
+        alarm_list.delete(selected_index)
+    else:
+        messagebox.showwarning("Warning", "Please select an alarm to cancel!")
+
+# Function to draw a clock face
+def draw_clock():
+    canvas.delete("all")
+    canvas.create_oval(50, 50, 250, 250, outline="#a67c52", width=3, fill="#1e1e1e")
+
+    for i in range(12):
+        angle = math.radians(i * 30 - 90)
+        x = 150 + 90 * math.cos(angle)
+        y = 150 + 90 * math.sin(angle)
+        canvas.create_text(x, y, text=str(i if i else 12), font=("Arial", 14, "bold"), fill="white")
+
+    current_time = time.localtime()
+    hour = current_time.tm_hour % 12
+    minute = current_time.tm_min
+    second = current_time.tm_sec
+
+    draw_hand(hour * 30 + minute * 0.5, 60, "#a67c52", 6)
+    draw_hand(minute * 6, 80, "white", 4)
+    draw_hand(second * 6, 90, "red", 2)
+
+    root.after(1000, draw_clock)
+
+def draw_hand(angle, length, color, width):
+    angle = math.radians(angle - 90)
+    x = 150 + length * math.cos(angle)
+    y = 150 + length * math.sin(angle)
+    canvas.create_line(150, 150, x, y, fill=color, width=width, capstyle=tk.ROUND)
+
+# Tkinter GUI
+root = tk.Tk()
+root.title("Alarm Clock")
+root.geometry("500x600")
+root.configure(bg="#121212")
+
+header = tk.Label(root, text="⏰ Alarm Clock ⏰", font=("Arial", 22, "bold"), fg="#a67c52", bg="#121212")
+header.pack(pady=15)
+
+frame = tk.Frame(root, bg="#121212")
+frame.pack()
+
+date_label = tk.Label(frame, text=f"Today: {time.strftime('%Y-%m-%d')}", font=("Arial", 16), fg="#ffffff", bg="#121212")
+date_label.pack(side=tk.LEFT, padx=20)
+
+canvas = tk.Canvas(frame, width=300, height=300, bg="#121212", highlightthickness=0)
+canvas.pack(side=tk.RIGHT)
+draw_clock()
+
+hour_var = tk.StringVar()
+minute_var = tk.StringVar()
+second_var = tk.StringVar()
+repeat_var = tk.BooleanVar()
+
+frame_time = tk.Frame(root, bg="#121212")
+frame_time.pack(pady=5)
+frame_time.place(x=50, y=250)
+
+tk.Label(frame_time, text="Hour:", font=("Arial", 12), fg="#ffffff", bg="#121212").grid(row=0, column=0, padx=5)
+hour_entry = ttk.Combobox(frame_time, textvariable=hour_var, values=[f"{i:02}" for i in range(24)], width=3)
+hour_entry.grid(row=0, column=1, padx=5)
+
+tk.Label(frame_time, text="Minute:", font=("Arial", 12), fg="#ffffff", bg="#121212").grid(row=1, column=0, padx=5)
+minute_entry = ttk.Combobox(frame_time, textvariable=minute_var, values=[f"{i:02}" for i in range(60)], width=3)
+minute_entry.grid(row=1, column=1, padx=5)
+
+tk.Label(frame_time, text="Second:", font=("Arial", 12), fg="#ffffff", bg="#121212").grid(row=2, column=0, padx=5)
+second_entry = ttk.Combobox(frame_time, textvariable=second_var, values=[f"{i:02}" for i in range(60)], width=3)
+second_entry.grid(row=2, column=1, padx=5)
+
+button = tk.Button(root, text="Set Alarm", command=set_alarm, font=("Arial", 14, "bold"), bg="#a67c52", fg="white", padx=10, pady=8)
+button.pack(pady=5)
+
+sound_button = tk.Button(root, text="Select Sound", command=select_sound, font=("Arial", 14, "bold"), bg="#4caf50", fg="white", padx=10, pady=8)
+sound_button.pack(pady=5)
+
+sound_label = tk.Label(root, text="Selected: Default (alarm.wav)", font=("Arial", 12), fg="white", bg="#121212")
+sound_label.pack(pady=5)
+
+alarm_list = tk.Listbox(root, font=("Arial", 12), bg="#1e1e1e", fg="white", height=5, width=40)
+alarm_list.pack(pady=5)
+
+cancel_button = tk.Button(root, text="Cancel Selected", command=cancel_selected_alarm, font=("Arial", 14, "bold"), bg="#8d6e63", fg="white", padx=10, pady=8)
+cancel_button.pack(pady=5)
+
+# Start the alarm thread
+alarm_thread = threading.Thread(target=check_alarm, daemon=True)
+alarm_thread.start()
+
+root.mainloop()
